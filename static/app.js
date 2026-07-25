@@ -926,6 +926,7 @@ $('btn-favorite').addEventListener('click', async function () {
     if (data.favorited) showToast('已收藏 ♥');
     else showToast('已取消收藏');
     updateFavoriteBtn();
+    refreshStatsIfVisible();
   } catch (e) { showToast('收藏失败：' + (e.message || '宿主未响应')); }
   finally {
     favoriteBusy = false;
@@ -934,7 +935,7 @@ $('btn-favorite').addEventListener('click', async function () {
 });
 
 async function sendFeedbackChange(type, song) {
-  return apiPost('/api/behavior', {
+  const result = await apiPost('/api/behavior', {
     type,
     songId: song.id,
     song: behaviorSongPayload(song),
@@ -943,6 +944,8 @@ async function sendFeedbackChange(type, song) {
     playbackId: currentPlaybackId,
     eventId: 'ui:' + Date.now() + ':' + (++behaviorSequence) + ':' + type + ':' + normalizeId(song.id)
   });
+  await refreshStatsIfVisible();
+  return result;
 }
 
 $('btn-like').addEventListener('click', async function () {
@@ -1273,6 +1276,7 @@ function renderStatsTab() {
     html += statRow('喜欢', (history.liked || 0) + ' 次');
     html += statRow('不喜欢', (history.disliked || 0) + ' 次');
     html += statRow('收藏', (history.favorite || 0) + ' 次');
+    html += statRow('播放时长', formatTime(Math.floor((history.durationMs || 0) / 1000)));
     html += statRow('推荐池', (data.poolSize || 0) + ' 首');
     html += statRow('行为记录', (data.historyCount || 0) + ' 条');
     if (data.topArtists && data.topArtists.length) {
@@ -1321,6 +1325,14 @@ function formatTopStat(item) {
   return escHtml(item && item.name || '') + '（' + Number(item && item.count || 0) + '）';
 }
 
+async function refreshStatsIfVisible() {
+  if (!statsPanel || statsPanel.classList.contains('hidden')) return;
+  try {
+    statsData = await apiGet('/api/stats');
+    renderStatsTab();
+  } catch (e) {}
+}
+
 /* ─── Behavior Reporting ─── */
 function reportBehavior(type, song, extra) {
   if (!sessionActive || !song) return;
@@ -1333,7 +1345,7 @@ function reportBehavior(type, song, extra) {
     playbackId: currentPlaybackId,
     eventId: 'ui:' + Date.now() + ':' + (++behaviorSequence) + ':' + type + ':' + normalizeId(song.id)
   }, extra || {});
-  apiPost('/api/behavior', payload).catch(() => {});
+  apiPost('/api/behavior', payload).then(refreshStatsIfVisible).catch(() => {});
 }
 
 function behaviorSongPayload(song) {

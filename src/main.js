@@ -1398,18 +1398,79 @@ function topPlaybackDimensions(events, songMap, field, limit) {
     .map(pair => ({ name: labels[pair[0]], count: pair[1] }));
 }
 
-router.get('/api/stats', async () => {
-  const allTime = { played: 0, liked: 0, disliked: 0, complete: 0, skip: 0, quickSkip: 0, favorite: 0 };
-  const plays = playbackEvents(state.history);
-  allTime.played = plays.length;
-  for (const item of state.history) {
-    if (item.type === 'like') allTime.liked++;
-    if (item.type === 'dislike') allTime.disliked++;
-    if (item.type === 'complete') allTime.complete++;
-    if (item.type === 'next') allTime.skip++;
-    if (item.type === 'quickSkip') allTime.quickSkip++;
-    if (item.type === 'favorite') allTime.favorite++;
+function playbackKey(event) {
+  if (!event) return '';
+  if (event.playbackId) return String(event.playbackId);
+  if (event.type === 'start' && event.eventId) return String(event.eventId);
+  return normalizeId(event.songId) + ':' + (Number(event.time) || 0);
+}
+
+function eventPlaybackSeconds(event) {
+  const duration = Math.max(0, Number(event && event.duration) || 0);
+  const position = Math.max(0, Number(event && event.position) || 0);
+  if (event && event.type === 'complete') return duration || position;
+  if (!duration) return position;
+  return Math.min(position, duration);
+}
+
+function summarizeBehaviorEvents(events) {
+  const list = Array.isArray(events) ? events.filter(Boolean) : [];
+  const playedKeys = new Set();
+  const terminals = new Map();
+  const stats = {
+    played: 0,
+    liked: 0,
+    disliked: 0,
+    complete: 0,
+    skip: 0,
+    quickSkip: 0,
+    favorite: 0,
+    durationMs: 0
+  };
+
+  for (const event of list) {
+    const type = String(event.type || '');
+    const key = playbackKey(event);
+    if (type === 'start' && key) playedKeys.add(key);
+    if (type === 'like') stats.liked++;
+    if (type === 'dislike') stats.disliked++;
+    if (type === 'favorite') stats.favorite++;
+
+    if (type !== 'complete' && type !== 'next' && type !== 'quickSkip') continue;
+    if (!key) continue;
+    if (!playedKeys.has(key)) playedKeys.add(key);
+    const current = terminals.get(key);
+    if (type === 'complete' || !current || (type === 'quickSkip' && current.type === 'next')) {
+      terminals.set(key, event);
+    }
   }
+
+  for (const event of terminals.values()) {
+    if (event.type === 'complete') stats.complete++;
+    else if (event.type === 'quickSkip') stats.quickSkip++;
+    else if (event.type === 'next') stats.skip++;
+    stats.durationMs += Math.round(eventPlaybackSeconds(event) * 1000);
+  }
+
+  stats.played = playedKeys.size;
+  return stats;
+}
+
+function currentSessionEvents() {
+  if (!state.session) return [];
+  const startTime = Number(state.session.startTime) || 0;
+  const endTime = Number(state.session.endTime) || Infinity;
+  const historySlice = state.history.filter(event => {
+    const time = Number(event && event.time) || 0;
+    return time >= startTime && time <= endTime;
+  });
+  return historySlice.length ? historySlice : (state.session.behaviors || []);
+}
+
+router.get('/api/stats', async () => {
+  const plays = playbackEvents(state.history);
+  const allTime = summarizeBehaviorEvents(state.history);
+  const sessionStats = summarizeBehaviorEvents(currentSessionEvents());
   const library = await getLibrary();
   const songMap = new Map(library.map(song => [song.id, song]));
   return jsonResponse({
@@ -1418,14 +1479,14 @@ router.get('/api/stats', async () => {
     favoriteSync: { stale: state.favoriteSyncFailed, syncedAt: state.favoriteSyncedAt },
     session: state.session ? {
       active: state.session.active,
-      playedCount: state.session.playedCount || 0,
-      likedCount: state.session.likedCount || 0,
-      dislikedCount: state.session.dislikedCount || 0,
-      completeCount: state.session.completeCount || 0,
-      skipCount: state.session.skipCount || 0,
-      quickSkipCount: state.session.quickSkipCount || 0,
-      favoriteCount: state.session.favoriteCount || 0,
-      duration: state.session.endTime ? state.session.endTime - state.session.startTime : Date.now() - state.session.startTime
+      playedCount: sessionStats.played,
+      likedCount: sessionStats.liked,
+      dislikedCount: sessionStats.disliked,
+      completeCount: sessionStats.complete,
+      skipCount: sessionStats.skip,
+      quickSkipCount: sessionStats.quickSkip,
+      favoriteCount: sessionStats.favorite,
+      duration: sessionStats.durationMs
     } : null,
     allTime,
     historyStats: allTime,
@@ -1436,7 +1497,7 @@ router.get('/api/stats', async () => {
 
 /* ─── Lifecycle ─── */
 globalThis.onInit = async function () {
-  songloft.log.info('抖歌 1.4.5 initializing...');
+  songloft.log.info('抖歌 1.4.6 initializing...');
   await loadState();
   await syncHostFavorites(false);
   songloft.log.info('抖歌 initialized. Pool: ' + state.pool.length + ', History: ' + state.history.length);

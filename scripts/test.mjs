@@ -123,6 +123,12 @@ await request('POST', '/api/behavior', {
   eventId: 'test-start-2', playbackId: 'play-2', type: 'start', songId: 3, song: songs[2]
 });
 await request('POST', '/api/behavior', {
+  eventId: 'test-complete-1', playbackId: 'play-1', type: 'complete', songId: 1, song: songs[0], position: 178, duration: songs[0].duration
+});
+await request('POST', '/api/behavior', {
+  eventId: 'test-next-2', playbackId: 'play-2', type: 'next', songId: 3, song: songs[2], position: 12, duration: songs[2].duration
+});
+await request('POST', '/api/behavior', {
   eventId: 'test-like-1', type: 'like', songId: first.id, song: first, position: 30, duration: first.duration
 });
 await request('POST', '/api/behavior', {
@@ -139,8 +145,11 @@ await request('POST', '/api/pool/release', { songs: [first] });
 const dislikeFilteredBatch = await request('GET', '/api/pool/next?count=20', null);
 assert(!dislikeFilteredBatch.songs.some(song => String(song.id) === String(first.id)), 'keeps explicitly disliked songs out of released and refilled recommendation batches');
 const stats = await request('GET', '/api/stats', null);
-assert(stats.historyCount === 4, 'deduplicates repeated behavior events');
+assert(stats.historyCount === 6, 'deduplicates repeated behavior events');
 assert(stats.historyStats.played === 2, 'counts actual playback starts instead of preference actions');
+assert(stats.historyStats.complete === 1 && stats.historyStats.skip === 1, 'counts completed and skipped playback outcomes');
+assert(stats.session.completeCount === 1 && stats.session.skipCount === 1, 'derives current session statistics from live behavior events');
+assert(stats.session.duration === 192000 && stats.historyStats.durationMs === 192000, 'tracks actual listened time instead of elapsed plugin time');
 assert(stats.topArtists[0].name === 'Artist A' && stats.topArtists[0].count === 2, 'computes frequent artists from playback history');
 assert(stats.topGenres[0].name === 'Pop' && stats.topGenres[0].count === 2, 'computes frequent categories from playback history');
 assert(typeof storage.get('longTermInterest') === 'string', 'serializes complex state in storage');
@@ -182,6 +191,7 @@ assert(app.includes('startPlayerStatePoll') && app.includes('staleBackwardPositi
 assert(app.indexOf('resetCardPositions(false)', app.indexOf('B → C → B')) < app.indexOf('updateAdjacentCards()', app.indexOf('B → C → B')), 'moves the current card into place before rewriting adjacent previews');
 assert(app.includes('setSongDetailsHidden(true)') && app.includes('setDefaultCover'), 'hides stale progress and lyrics during song switches and falls back to the default cover');
 assert(app.includes('DEFAULT_COVER_URL') && app.includes('setDefaultCover') && app.includes('removeQueuedSongAfterCurrent'), 'falls back to a default cover and removes disliked songs from the pending client queue');
+assert(app.includes('refreshStatsIfVisible') && app.includes("then(refreshStatsIfVisible)"), 'refreshes visible statistics after behavior updates');
 assert(defaultCover.includes('<svg') && defaultCover.includes('Default music cover'), 'ships a default cover image');
 assert(css.includes('-webkit-user-drag: none') && /progress-bar[\s\S]*pointer-events:\s*auto/.test(css), 'prevents native image drag and keeps the native progress range interactive');
 assert(!app.includes("factors.push('宿主收藏')") && app.includes("replace(/宿主收藏/g, '用户收藏')"), 'shows 用户收藏 in the bottom-right recommendation details');
