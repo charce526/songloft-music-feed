@@ -1,0 +1,13 @@
+{
+  "name": "songloft-music-feed",
+  "version": "1.0.5",
+  "description": "抖歌 (songloft-music-feed) - 沉浸式本地音乐发现插件",
+  "author": "charce526",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "validate": "node scripts/validate.mjs"
+  }
+}

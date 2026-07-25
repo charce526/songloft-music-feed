@@ -1,0 +1,22 @@
+{
+  "name": "抖歌",
+  "name_en": "Music Feed",
+  "version": "1.0.5",
+  "description": "沉浸式本地音乐发现插件，借鉴信息流体验，基于用户行为不断学习，帮助你重新发现自己的音乐库。",
+  "author": "charce526",
+  "license": "Apache-2.0",
+  "entryPath": "music-feed",
+  "main": "main.js",
+  "icon": "icon.svg",
+  "minHostVersion": "2.11.0",
+  "permissions": [
+    "storage",
+    "songs.read",
+    "playlists.read",
+    "playlists.write"
+  ],
+  "staticHash": false,
+  "download_url": "",
+  "entryHash": "46465b4745c51f2a57311d9c169bc477b2f3d44da254d6534b92732fdc22b745",
+  "zipHash": "cdcf2a4618f438698bec2f42e3a8309ab379f70dd2fc9f6e89e3282379da436c"
+}
