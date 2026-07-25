@@ -1,4 +1,4 @@
 node_modules/
-dist/_build/
+Release/_build/
 *.log
 .DS_Store

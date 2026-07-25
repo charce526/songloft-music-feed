@@ -10,8 +10,8 @@ import { deflateRawSync } from 'zlib';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(__dirname, '..');
-const DIST = join(ROOT, 'dist');
-const BUILD = join(DIST, '_build');
+const RELEASE = join(ROOT, 'Release');
+const BUILD = join(RELEASE, '_build');
 
 function sha256(data) {
   return createHash('sha256').update(data).digest('hex');
@@ -159,23 +159,14 @@ writeFileSync(pluginPath, JSON.stringify(plugin, null, 2) + '\n');
 // Create zip
 const version = plugin.version;
 const zipName = 'songloft-music-feed-v' + version + '.jsplugin.zip';
-const zipPath = join(DIST, zipName);
+const zipPath = join(RELEASE, zipName);
 
 // Remove existing same-version zip
 if (existsSync(zipPath)) rmSync(zipPath);
 
 createZip(getAllFiles(BUILD).sort((a, b) => a.rel.localeCompare(b.rel)), zipPath);
 
-const sourceZipName = 'songloft-music-feed-v' + version + '-source.zip';
-const sourceZipPath = join(DIST, sourceZipName);
-if (existsSync(sourceZipPath)) rmSync(sourceZipPath);
-const sourceFiles = getAllFiles(ROOT)
-  .filter(file => !file.rel.startsWith('dist/') && !file.rel.startsWith('node_modules/') && !file.rel.startsWith('.git/'))
-  .sort((a, b) => a.rel.localeCompare(b.rel));
-createZip(sourceFiles, sourceZipPath);
-
 console.log('Build complete: ' + zipName);
-console.log('Source archive: ' + sourceZipName);
 console.log('  entryHash: ' + entryHash);
 console.log('  zipHash:   ' + zipHash);
 console.log('  version:   ' + version);

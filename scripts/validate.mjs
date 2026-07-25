@@ -10,12 +10,12 @@ import { execSync } from 'child_process';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(__dirname, '..');
-const DIST = join(ROOT, 'dist');
+const RELEASE = join(ROOT, 'Release');
 
 const plugin = JSON.parse(readFileSync(join(ROOT, 'plugin.json'), 'utf8'));
 const version = plugin.version;
 const zipName = 'songloft-music-feed-v' + version + '.jsplugin.zip';
-const zipPath = join(DIST, zipName);
+const zipPath = join(RELEASE, zipName);
 
 let errors = 0;
 function check(cond, msg) {

@@ -1,0 +1,9 @@
+{
+  "name": "charce526 的 Songloft 插件源",
+  "includes": [
+    "https://raw.githubusercontent.com/charce526/songloft-library-plus/main/registry.json"
+  ],
+  "plugins": [
+    "https://raw.githubusercontent.com/charce526/songloft-music-feed/main/plugin.json"
+  ]
+}

@@ -1,25 +1,57 @@
-# 抖歌（songloft-music-feed）
+# 抖歌 songloft-music-feed
 
-抖歌是一个面向 [Songloft](https://github.com/songloft-org/songloft) 的沉浸式本地音乐发现插件。插件参考信息流式浏览体验，将本地音乐库转换为可上下滑动探索的播放界面，并根据用户的播放、喜欢、不喜欢、收藏和跳过等行为持续优化推荐结果。
+抖歌是一款面向 [Songloft](https://github.com/songloft-org/songloft) 的沉浸式本地音乐发现插件。它将本地音乐库整理成类似信息流的上下滑动播放界面，并根据播放、喜欢、不喜欢、收藏和跳过等行为持续学习，帮助用户重新发现自己的音乐收藏。
 
-## ✨ 功能亮点
+> 本插件由 AI 生成。欢迎通过 GitHub Issues 反馈使用中遇到的问题与改进建议。
 
-- 🎧 **沉浸式播放界面**：以大封面、背景虚化、歌词、进度条和右侧快捷按钮构成完整播放页，兼容 PC 与移动端。
-- 🧠 **本地推荐模型**：综合长期兴趣与本次探索偏好，结合歌手、专辑、流派、年代、语种、风格、来源类型、格式、时长和目录等多维特征生成推荐。
-- 🔀 **动态探索机制**：通过时间衰减、近期去重、探索比例和多样性约束，减少重复推荐和单一歌手过度集中。
-- ❤️ **收藏与反馈联动**：支持喜欢、不喜欢、用户收藏和跳过反馈，收藏状态与 Songloft 内置收藏歌单保持同步。
-- 📊 **历史播放统计**：按真实播放行为统计常听歌手、类别和播放记录，不把偏好动作误算为播放次数。
-- 🧹 **偏好重置**：可清除插件内的播放历史、反馈数据和推荐学习结果，让推荐从零重新开始。
-- 🛡️ **数据本地保存**：推荐偏好保存在 Songloft 插件本地存储中，不依赖外部服务器。
+## 关于 Songloft
 
-## 📦 安装方式
+[Songloft](https://github.com/songloft-org/songloft) 是本插件所依赖的音乐服务项目。本插件基于 Songloft 提供的插件能力开发，是独立维护的扩展项目，并非 Songloft 主程序的内置组件。
 
-1. 在 GitHub Releases 下载最新的 `songloft-music-feed-v*.jsplugin.zip`。
-2. 打开 Songloft 的插件管理页面。
-3. 上传并启用插件包。
-4. 进入“抖歌”页面后开始探索本地音乐库。
+- 上游项目：[songloft-org/songloft](https://github.com/songloft-org/songloft)
+- 插件 SDK：[songloft-org/plugin-toolchain](https://github.com/songloft-org/plugin-toolchain)
+- 最低兼容版本：Songloft v2.11.0
 
-## 🧩 插件信息
+## 功能亮点
+
+### 沉浸式播放
+
+- 大封面、背景虚化、歌词、进度条和右侧快捷按钮组成完整播放界面
+- 支持上下滑动切歌，适配 PC 与移动端使用
+- 支持播放、暂停、喜欢、不喜欢、用户收藏和播放进度展示
+
+### 本地推荐
+
+- 基于播放行为、长期兴趣和本次探索偏好生成推荐队列
+- 综合歌手、专辑、流派、年代、语种、风格、来源类型、格式、时长和目录等多维特征
+- 加入近期去重、探索比例和多样性约束，减少重复推荐和单一类型过度集中
+
+### 收藏与反馈
+
+- 喜欢、不喜欢和跳过会即时影响本次推荐队列
+- 用户收藏状态与 Songloft 内置收藏歌单同步
+- 支持重置插件内偏好数据，让推荐模型重新开始学习
+
+### 历史统计
+
+- 记录真实播放行为，展示常听歌手、类别和播放记录
+- 偏好数据保存在 Songloft 插件本地存储中，不依赖外部服务器
+
+## 安装
+
+1. 下载最新版本：[songloft-music-feed-v1.4.3.jsplugin.zip](https://github.com/charce526/songloft-music-feed/releases/latest/download/songloft-music-feed-v1.4.3.jsplugin.zip)。
+2. 打开 Songloft 插件管理页面。
+3. 上传安装包并启用“抖歌”。
+
+## 插件源
+
+可以通过本仓库的插件源文件订阅：
+
+```text
+https://raw.githubusercontent.com/charce526/songloft-music-feed/main/registry.json
+```
+
+## 插件信息
 
 | 项目 | 内容 |
 | --- | --- |
@@ -27,10 +59,10 @@
 | 包名 | `songloft-music-feed` |
 | 当前版本 | `1.4.3` |
 | 作者 | `charce526` |
-| 适用项目 | [Songloft](https://github.com/songloft-org/songloft) |
+| 许可证 | `Apache-2.0` |
 | 最低宿主版本 | `2.11.0` |
 
-## 🛠️ 开发与验证
+## 本地构建
 
 ```bash
 npm install
@@ -39,12 +71,8 @@ npm run build
 npm run validate
 ```
 
-构建后的插件包位于 `dist/` 目录，文件名格式为：
+构建后的插件安装包位于 `Release/` 目录。
 
-```text
-songloft-music-feed-v版本号.jsplugin.zip
-```
+## 许可证
 
-## 📄 说明
-
-本插件基于 Songloft 插件体系开发，用于增强本地音乐库的探索和播放体验。插件不会上传用户偏好数据，所有推荐学习数据均保存在本地插件存储中。
+本项目采用 [Apache License 2.0](./LICENSE) 开源许可证。Songloft 本身的授权与使用条款请以上游项目为准。
