@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>抖歌</title>
-<link rel="stylesheet" href="static/styles.css?v=1.0.5">
+<link rel="stylesheet" href="static/styles.css?v=1.4.2">
 </head>
 <body>
 <!-- 启动页 -->
@@ -14,7 +14,7 @@
   </button>
   <div class="setup-container">
     <div class="setup-icon">
-      <svg viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="12" fill="#6C5CE7"/><path d="M14 34V16l20-4v18" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="34" r="4" fill="#fff"/><circle cx="34" cy="30" r="4" fill="#fff"/></svg>
+      <img src="static/icon.svg" alt="抖歌图标" draggable="false">
     </div>
     <h1 class="setup-title">抖歌</h1>
     <p class="setup-subtitle">不知道听什么？让音乐自己来找你。</p>
@@ -26,13 +26,27 @@
 <!-- 推荐范围设置面板 -->
 <div id="source-panel" class="stats-panel hidden">
   <div class="stats-backdrop"></div>
-  <div class="stats-content">
+  <div class="stats-content range-content">
     <h3>推荐范围</h3>
-    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">选择推荐歌曲的来源，排除不想听到的内容。</p>
-    <div id="source-list" class="source-list">
-      <div class="loading-spinner"></div>
+    <p class="range-description">默认使用本地所有音频。你可以排除网络歌曲、电台或特定目录，让推荐内容更干净。</p>
+    <div id="range-summary" class="range-summary">本地音频 · 正在读取范围</div>
+    <div class="range-section">
+      <div class="range-section-title">排除类别</div>
+      <label class="range-check"><input id="exclude-remote" type="checkbox"><span class="range-check-text"><span>网络歌曲</span><small>远程或在线音源</small></span></label>
+      <label class="range-check"><input id="exclude-radio" type="checkbox"><span class="range-check-text"><span>电台 / 直播</span><small>广播、直播等非本地音频</small></span></label>
     </div>
-    <button id="btn-close-source" class="stats-close">关闭</button>
+    <div class="range-section">
+      <div class="range-section-title">排除目录</div>
+      <p class="range-section-note">勾选后，该目录及其子目录中的歌曲都不会进入推荐。</p>
+      <div id="source-list" class="source-list range-folder-list">
+      <div class="loading-spinner"></div>
+      </div>
+      <input id="custom-exclude-folder" class="range-input" type="text" placeholder="输入自定义目录名或路径，多个用逗号分隔">
+    </div>
+    <div class="range-actions">
+      <button id="btn-close-source" class="stats-secondary">取消</button>
+      <button id="btn-save-source" class="stats-close">保存范围</button>
+    </div>
   </div>
 </div>
 
@@ -88,11 +102,6 @@
         <p id="song-album" class="song-album">--</p>
       </div>
 
-      <!-- 推荐理由 -->
-      <div id="reason-bar" class="reason-bar">
-        <span id="reason-text"></span>
-      </div>
-
       <div class="card-bottom-zone">
         <!-- 歌词（3行） -->
         <div id="lyric-box" class="lyric-box">
@@ -104,9 +113,13 @@
         <!-- 进度条 -->
         <div class="progress-wrap">
           <span id="progress-time" class="progress-time">0:00</span>
-          <div id="progress-bar" class="progress-bar">
-            <div id="progress-fill" class="progress-fill"></div>
-            <div id="progress-thumb" class="progress-thumb"></div>
+          <div class="progress-slider">
+            <div class="progress-track" aria-hidden="true">
+              <span id="progress-fill" class="progress-fill"></span>
+              <span id="progress-thumb" class="progress-thumb"></span>
+            </div>
+            <input id="progress-bar" class="progress-bar" type="range" min="0" max="1000" value="0"
+              step="1" aria-label="播放进度">
           </div>
           <span id="duration-time" class="progress-time">0:00</span>
         </div>
@@ -143,6 +156,19 @@
     </button>
   </div>
 
+  <!-- 推荐说明：不占用主内容区域 -->
+  <div class="recommendation-info">
+    <div id="recommendation-popover" class="recommendation-popover hidden" role="dialog" aria-label="推荐说明">
+      <strong>推荐这首歌的原因</strong>
+      <p id="recommendation-reason"></p>
+      <strong>当前算法</strong>
+      <p id="recommendation-algorithm"></p>
+      <div id="recommendation-factors" class="recommendation-factors"></div>
+    </div>
+    <button id="btn-recommendation-info" class="recommendation-info-btn" type="button"
+      title="查看推荐原因和算法" aria-label="查看推荐原因和算法" aria-expanded="false">i</button>
+  </div>
+
   <!-- 滑动提示 -->
   <div id="swipe-hint" class="swipe-hint">
     <span>上滑下一首 · 下滑上一首 · 点击封面暂停</span>
@@ -156,12 +182,16 @@
 <div id="stats-panel" class="stats-panel hidden">
   <div class="stats-backdrop"></div>
   <div class="stats-content">
-    <h3>探索统计</h3>
+    <h3>播放统计</h3>
+    <div class="stats-tabs" role="tablist">
+      <button id="stats-tab-session" class="stats-tab active" role="tab">本次播放</button>
+      <button id="stats-tab-history" class="stats-tab" role="tab">历史播放</button>
+    </div>
     <div id="stats-body" class="stats-body"></div>
     <button id="btn-close-stats" class="stats-close">关闭</button>
   </div>
 </div>
 
-<script src="static/app.js?v=1.0.5"></script>
+<script src="static/app.js?v=1.4.3"></script>
 </body>
 </html>

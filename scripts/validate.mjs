@@ -14,7 +14,7 @@ const DIST = join(ROOT, 'dist');
 
 const plugin = JSON.parse(readFileSync(join(ROOT, 'plugin.json'), 'utf8'));
 const version = plugin.version;
-const zipName = 'douge-v' + version + '.jsplugin.zip';
+const zipName = 'songloft-music-feed-v' + version + '.jsplugin.zip';
 const zipPath = join(DIST, zipName);
 
 let errors = 0;
@@ -54,8 +54,8 @@ const mainMarkers = [
   'songloft.storage.set',
   'songloft.playlists.list',
   'songloft.playlists.getSongs',
-  'songloft.plugin.getHostUrl',
-  'songloft.plugin.getToken',
+  'songloft.playlists.addSongs',
+  'songloft.playlists.removeSongs',
   'createRouter',
   'jsonResponse',
   'POOL_SIZE',
@@ -64,18 +64,28 @@ const mainMarkers = [
   'refillPool',
   'processBehavior',
   'BEHAVIOR_WEIGHTS',
-  'getInterestScore',
-  'updateInterest',
-  'decayInterest',
+  'modelScore',
+  'modelScoreDetails',
+  'songFeatures',
+  'updateModel',
+  'featureScore',
+  'syncHostFavorites',
+  'checkoutPool',
+  'preferenceIds',
   'createSession',
   'shuffleArray',
-  'buildReason',
+  'buildRecommendation',
+  'rerankPool',
+  'playbackEvents',
   'filterBySource',
+  'normalizeConfig',
+  'resetPreferenceData',
+  'createDefaultConfig',
   'getAvailableSources',
   'loadState',
   'savePool',
   'saveSession',
-  'saveLongTermInterest'
+  'saveProfile'
 ];
 for (const m of mainMarkers) {
   check(mainJs.includes(m), 'main.js contains: ' + m);
@@ -90,7 +100,7 @@ const appMarkers = [
   'togglePlay',
   'onState',
   'loadSources',
-  'selectSource',
+  'saveRangeSettings',
   'startDiscovery',
   'endDiscovery',
   'loadNextBatch',
@@ -102,12 +112,16 @@ const appMarkers = [
   'parseLrc',
   'updateLyricDisplay',
   'playIndicator',
-  'progressThumb',
-  'seekFromEvent',
+  'seekFromRange',
+  'commitProgressSeek',
+  'setProgressFromClientX',
+  'recommendationPopover',
   'applyDrag',
   'resetCardPositions',
+  'switchPlayerTo',
   'updateAdjacentCards',
   'coverGeneration',
+  'pendingSwitch',
   'refreshFavoriteState',
   'startFavPoll',
   'CARD_PEEK',
@@ -119,6 +133,7 @@ const appMarkers = [
   'playbackPosition',
   'updateProgress',
   'showStats',
+  'renderStatsTab',
   'formatTime',
   'applyTheme',
   'showToast',

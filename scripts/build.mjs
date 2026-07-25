@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, cpSync, readdirSync, st
 import { join, relative } from 'path';
 import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
+import { deflateRawSync } from 'zlib';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -27,6 +27,102 @@ function getAllFiles(dir, base) {
     else results.push({ abs: full, rel: relative(base, full).replace(/\\/g, '/') });
   }
   return results;
+}
+
+const CRC_TABLE = new Uint32Array(256);
+for (let i = 0; i < 256; i++) {
+  let c = i;
+  for (let j = 0; j < 8; j++) {
+    c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+  }
+  CRC_TABLE[i] = c >>> 0;
+}
+
+function crc32(data) {
+  let c = 0xffffffff;
+  for (const byte of data) {
+    c = CRC_TABLE[(c ^ byte) & 0xff] ^ (c >>> 8);
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function u16(value) {
+  const buf = Buffer.alloc(2);
+  buf.writeUInt16LE(value);
+  return buf;
+}
+
+function u32(value) {
+  const buf = Buffer.alloc(4);
+  buf.writeUInt32LE(value >>> 0);
+  return buf;
+}
+
+function createZip(files, zipPath) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const name = Buffer.from(file.rel, 'utf8');
+    const data = readFileSync(file.abs);
+    const compressed = deflateRawSync(data, { level: 9 });
+    const crc = crc32(data);
+
+    const localHeader = Buffer.concat([
+      u32(0x04034b50),
+      u16(20),
+      u16(0x0800),
+      u16(8),
+      u16(0),
+      u16(0x0021),
+      u32(crc),
+      u32(compressed.length),
+      u32(data.length),
+      u16(name.length),
+      u16(0),
+      name
+    ]);
+
+    localParts.push(localHeader, compressed);
+
+    centralParts.push(Buffer.concat([
+      u32(0x02014b50),
+      u16(20),
+      u16(20),
+      u16(0x0800),
+      u16(8),
+      u16(0),
+      u16(0x0021),
+      u32(crc),
+      u32(compressed.length),
+      u32(data.length),
+      u16(name.length),
+      u16(0),
+      u16(0),
+      u16(0),
+      u16(0),
+      u32(0),
+      u32(offset),
+      name
+    ]));
+
+    offset += localHeader.length + compressed.length;
+  }
+
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const end = Buffer.concat([
+    u32(0x06054b50),
+    u16(0),
+    u16(0),
+    u16(files.length),
+    u16(files.length),
+    u32(centralSize),
+    u32(offset),
+    u16(0)
+  ]);
+
+  writeFileSync(zipPath, Buffer.concat([...localParts, ...centralParts, end]));
 }
 
 // Clean build dir
@@ -62,36 +158,24 @@ writeFileSync(pluginPath, JSON.stringify(plugin, null, 2) + '\n');
 
 // Create zip
 const version = plugin.version;
-const zipName = 'douge-v' + version + '.jsplugin.zip';
+const zipName = 'songloft-music-feed-v' + version + '.jsplugin.zip';
 const zipPath = join(DIST, zipName);
 
 // Remove existing same-version zip
 if (existsSync(zipPath)) rmSync(zipPath);
 
-// Use .NET ZipFile on Windows for forward-slash entries
-const ps1 = `
-Add-Type -AssemblyName System.IO.Compression
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-$zipPath = '${zipPath}'
-$buildDir = '${BUILD}'
-$zip = [System.IO.Compression.ZipFile]::Open($zipPath, 'Create')
-Get-ChildItem -Path $buildDir -Recurse -File | ForEach-Object {
-  $rel = $_.FullName.Substring($buildDir.Length + 1).Replace([char]92, [char]47)
-  [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $rel, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
-}
-$zip.Dispose()
-Write-Host "Created: ${zipName}"
-`;
+createZip(getAllFiles(BUILD).sort((a, b) => a.rel.localeCompare(b.rel)), zipPath);
 
-const ps1Path = join(DIST, '_build_zip.ps1');
-writeFileSync(ps1Path, ps1);
-try {
-  execSync(`powershell -ExecutionPolicy Bypass -File "${ps1Path}"`, { stdio: 'inherit' });
-} finally {
-  if (existsSync(ps1Path)) rmSync(ps1Path);
-}
+const sourceZipName = 'songloft-music-feed-v' + version + '-source.zip';
+const sourceZipPath = join(DIST, sourceZipName);
+if (existsSync(sourceZipPath)) rmSync(sourceZipPath);
+const sourceFiles = getAllFiles(ROOT)
+  .filter(file => !file.rel.startsWith('dist/') && !file.rel.startsWith('node_modules/') && !file.rel.startsWith('.git/'))
+  .sort((a, b) => a.rel.localeCompare(b.rel));
+createZip(sourceFiles, sourceZipPath);
 
 console.log('Build complete: ' + zipName);
+console.log('Source archive: ' + sourceZipName);
 console.log('  entryHash: ' + entryHash);
 console.log('  zipHash:   ' + zipHash);
 console.log('  version:   ' + version);
