@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>抖歌</title>
+<link rel="stylesheet" href="static/styles.css?v=1.0.5">
+</head>
+<body>
+<!-- 启动页 -->
+<div id="setup-screen" class="screen">
+  <button id="btn-settings" class="setup-settings" title="设置推荐范围">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+  <div class="setup-container">
+    <div class="setup-icon">
+      <svg viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="12" fill="#6C5CE7"/><path d="M14 34V16l20-4v18" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="34" r="4" fill="#fff"/><circle cx="34" cy="30" r="4" fill="#fff"/></svg>
+    </div>
+    <h1 class="setup-title">抖歌</h1>
+    <p class="setup-subtitle">不知道听什么？让音乐自己来找你。</p>
+    <button id="btn-start" class="start-btn">开始探索</button>
+    <p class="setup-notice">进入探索模式后，播放队列将由抖歌智能维护，<br>退出后恢复 Songloft 默认播放。</p>
+  </div>
+</div>
+
+<!-- 推荐范围设置面板 -->
+<div id="source-panel" class="stats-panel hidden">
+  <div class="stats-backdrop"></div>
+  <div class="stats-content">
+    <h3>推荐范围</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">选择推荐歌曲的来源，排除不想听到的内容。</p>
+    <div id="source-list" class="source-list">
+      <div class="loading-spinner"></div>
+    </div>
+    <button id="btn-close-source" class="stats-close">关闭</button>
+  </div>
+</div>
+
+<!-- 主界面：沉浸式音乐发现 -->
+<div id="feed-screen" class="screen hidden">
+  <!-- 动态背景 -->
+  <div id="bg-layer" class="bg-layer">
+    <div id="bg-image" class="bg-image"></div>
+    <div class="bg-overlay"></div>
+  </div>
+
+  <!-- 顶部栏 -->
+  <div class="top-bar">
+    <button id="btn-exit" class="top-btn" title="退出探索">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="top-title"></div>
+    <button id="btn-stats" class="top-btn" title="统计">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+    </button>
+  </div>
+
+  <!-- 卡片堆叠容器 -->
+  <div id="card-container" class="card-container">
+    <!-- 上一首（简化预览） -->
+    <div id="card-prev" class="feed-card card-adjacent">
+      <div class="mini-cover"><img id="prev-cover-img" src="" alt=""></div>
+      <div class="mini-info">
+        <span id="prev-title" class="mini-title"></span>
+        <span id="prev-artist" class="mini-artist"></span>
+      </div>
+    </div>
+
+    <!-- 当前卡片（完整内容） -->
+    <div id="card-current" class="feed-card">
+      <div class="card-top-spacer"></div>
+
+      <!-- 专辑封面 -->
+      <div id="cover-wrap" class="cover-wrap">
+        <img id="cover-img" class="cover-img" src="" alt="cover">
+        <div id="cover-placeholder" class="cover-placeholder">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        </div>
+        <div id="play-indicator" class="play-indicator hidden">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="rgba(255,255,255,0.9)"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+      </div>
+
+      <!-- 歌曲信息 -->
+      <div class="song-info">
+        <h2 id="song-title" class="song-title">--</h2>
+        <p id="song-artist" class="song-artist">--</p>
+        <p id="song-album" class="song-album">--</p>
+      </div>
+
+      <!-- 推荐理由 -->
+      <div id="reason-bar" class="reason-bar">
+        <span id="reason-text"></span>
+      </div>
+
+      <div class="card-bottom-zone">
+        <!-- 歌词（3行） -->
+        <div id="lyric-box" class="lyric-box">
+          <p id="lyric-prev" class="lyric-line lyric-prev"></p>
+          <p id="lyric-current" class="lyric-line lyric-current"></p>
+          <p id="lyric-next" class="lyric-line lyric-next"></p>
+        </div>
+
+        <!-- 进度条 -->
+        <div class="progress-wrap">
+          <span id="progress-time" class="progress-time">0:00</span>
+          <div id="progress-bar" class="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+            <div id="progress-thumb" class="progress-thumb"></div>
+          </div>
+          <span id="duration-time" class="progress-time">0:00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 下一首（简化预览） -->
+    <div id="card-next" class="feed-card card-adjacent">
+      <div class="mini-cover"><img id="next-cover-img" src="" alt=""></div>
+      <div class="mini-info">
+        <span id="next-title" class="mini-title"></span>
+        <span id="next-artist" class="mini-artist"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧操作按钮 -->
+  <div class="action-rail">
+    <button id="btn-favorite" class="action-btn" title="收藏">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      <span class="action-label">收藏</span>
+    </button>
+    <button id="btn-like" class="action-btn" title="喜欢">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+      <span class="action-label">喜欢</span>
+    </button>
+    <button id="btn-dislike" class="action-btn" title="不喜欢">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+      <span class="action-label">不喜欢</span>
+    </button>
+    <button id="btn-shuffle" class="action-btn" title="随机一下">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+      <span class="action-label">随机</span>
+    </button>
+  </div>
+
+  <!-- 滑动提示 -->
+  <div id="swipe-hint" class="swipe-hint">
+    <span>上滑下一首 · 下滑上一首 · 点击封面暂停</span>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
+</div>
+
+<!-- 统计面板 -->
+<div id="stats-panel" class="stats-panel hidden">
+  <div class="stats-backdrop"></div>
+  <div class="stats-content">
+    <h3>探索统计</h3>
+    <div id="stats-body" class="stats-body"></div>
+    <button id="btn-close-stats" class="stats-close">关闭</button>
+  </div>
+</div>
+
+<script src="static/app.js?v=1.0.5"></script>
+</body>
+</html>
