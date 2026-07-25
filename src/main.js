@@ -57,6 +57,16 @@ const LIBRARY_TTL = 5 * 60 * 1000;
 const FAVORITE_TTL = 2 * 60 * 1000;
 const FAVORITE_PLAYLIST_ID = 1;
 const RADIO_FAVORITE_PLAYLIST_ID = 2;
+const FAVORITE_SCORE_BOOST = 10;
+const LIKED_SCORE_BOOST = 16;
+const RECENT_PLAY_PENALTY = 28;
+const RECENT_QUEUE_PENALTY = 32;
+const RECENT_FAVORITE_QUEUE_PENALTY = 44;
+const RECENT_PLAY_WINDOW = 80;
+const RECENT_QUEUE_LIMIT = 160;
+const QUEUE_COOLDOWN_WINDOW = 60;
+const FAVORITE_QUEUE_COOLDOWN_WINDOW = 100;
+const BATCH_FAVORITE_RATIO = 0.2;
 
 function createDefaultConfig() {
   return {
@@ -219,6 +229,7 @@ async function loadState() {
   const needsPoolRefresh = !storedProfile || Number(storedProfile.version) !== PROFILE_VERSION;
   state.longTermInterest = normalizeModel(storedProfile);
   state.pool = normalizePool(await storageGet(STORAGE_KEYS.pool, []));
+  state.pool = state.pool.filter(isRecommendableSong);
   if (needsPoolRefresh) state.pool = [];
   state.history = await storageGet(STORAGE_KEYS.history, []);
   if (!Array.isArray(state.history)) state.history = [];
@@ -340,6 +351,7 @@ function normalizeSession(raw) {
   session.interest = normalizeModel(raw && raw.interest);
   session.behaviors = Array.isArray(session.behaviors) ? session.behaviors : [];
   session.seenIds = Array.isArray(session.seenIds) ? session.seenIds.map(normalizeId) : [];
+  session.recentQueueIds = Array.isArray(session.recentQueueIds) ? session.recentQueueIds.map(normalizeId).filter(Boolean) : [];
   return session;
 }
 
@@ -615,8 +627,12 @@ function updateModel(model, song, weight, type) {
 }
 
 function isExplicitlyDisliked(song) {
-  const entry = state.longTermInterest.songs[song.id];
+  const entry = state.longTermInterest.songs[normalizeId(song && song.id)];
   return Boolean(entry && entry.disliked && !entry.liked);
+}
+
+function isRecommendableSong(song) {
+  return Boolean(song && song.id && !isExplicitlyDisliked(song));
 }
 
 function getSessionWeight() {
@@ -668,10 +684,31 @@ function playbackEvents(history) {
 
 function getRecentCount(id) {
   let count = 0;
-  for (const item of playbackEvents(state.history).slice(-30)) {
+  for (const item of playbackEvents(state.history).slice(-RECENT_PLAY_WINDOW)) {
     if (normalizeId(item.songId) === id) count++;
   }
   return count;
+}
+
+function recentQueueDistance(id) {
+  const targetId = normalizeId(id);
+  const queueIds = state.session && Array.isArray(state.session.recentQueueIds)
+    ? state.session.recentQueueIds
+    : [];
+  for (let i = queueIds.length - 1; i >= 0; i--) {
+    if (normalizeId(queueIds[i]) === targetId) return queueIds.length - 1 - i;
+  }
+  return Infinity;
+}
+
+function getRecentQueuePenalty(id) {
+  const distance = recentQueueDistance(id);
+  if (!Number.isFinite(distance)) return 0;
+  const isFavorite = state.hostFavorites.has(normalizeId(id));
+  const windowSize = isFavorite ? FAVORITE_QUEUE_COOLDOWN_WINDOW : QUEUE_COOLDOWN_WINDOW;
+  if (distance >= windowSize) return 0;
+  const basePenalty = isFavorite ? RECENT_FAVORITE_QUEUE_PENALTY : RECENT_QUEUE_PENALTY;
+  return Math.round(basePenalty * (1 - distance / windowSize));
 }
 
 function getExplorationRatio() {
@@ -700,9 +737,10 @@ function scoreCandidate(song) {
   const sessionScore = sessionDetails.total;
   const preferenceScore = longScore * (1 - sessionWeight) + sessionScore * sessionWeight;
   const songEntry = state.longTermInterest.songs[song.id];
-  const favoriteBoost = state.hostFavorites.has(song.id) ? 24 : 0;
-  const likedBoost = songEntry && songEntry.liked ? 18 : 0;
-  const recentPenalty = getRecentCount(song.id) * 18;
+  const favoriteBoost = state.hostFavorites.has(song.id) ? FAVORITE_SCORE_BOOST : 0;
+  const likedBoost = songEntry && songEntry.liked ? LIKED_SCORE_BOOST : 0;
+  const recentPenalty = getRecentCount(song.id) * RECENT_PLAY_PENALTY;
+  const recentQueuePenalty = getRecentQueuePenalty(song.id);
   const dislikePenalty = isExplicitlyDisliked(song) ? 120 : 0;
   const featureContributions = {};
   for (const dimension of MODEL_DIMENSIONS) {
@@ -711,13 +749,14 @@ function scoreCandidate(song) {
       (Number(sessionDetails.dimensions[dimension]) || 0) * sessionWeight;
   }
   return {
-    score: preferenceScore + favoriteBoost + likedBoost - recentPenalty - dislikePenalty + stableJitter(song.id),
+    score: preferenceScore + favoriteBoost + likedBoost - recentPenalty - recentQueuePenalty - dislikePenalty + stableJitter(song.id),
     longScore,
     sessionScore,
     sessionWeight,
     favoriteBoost,
     likedBoost,
     recentPenalty,
+    recentQueuePenalty,
     dislikePenalty,
     featureContributions
   };
@@ -793,7 +832,7 @@ function buildRecommendation(song, detail, mode) {
       if (label && !factors.includes(label)) factors.push(label);
     });
   if (detail.likedBoost) factors.push('已喜欢');
-  if (detail.recentPenalty) factors.push('近期重复抑制');
+  if (detail.recentPenalty || detail.recentQueuePenalty) factors.push('近期重复抑制');
   const sessionPercent = Math.round(detail.sessionWeight * 100);
   const longPercent = 100 - sessionPercent;
   return {
@@ -890,6 +929,52 @@ function poolItem(song, detail, mode) {
   return item;
 }
 
+function favoriteCapForBatch(count) {
+  return Math.max(1, Math.floor(Math.max(1, count) * BATCH_FAVORITE_RATIO));
+}
+
+function markQueuedSongs(songs) {
+  if (!state.session || !state.session.active || !Array.isArray(songs) || !songs.length) return false;
+  if (!Array.isArray(state.session.recentQueueIds)) state.session.recentQueueIds = [];
+  const queueIds = state.session.recentQueueIds.map(normalizeId).filter(Boolean);
+  for (const song of songs) {
+    const id = normalizeId(song && song.id);
+    if (!id) continue;
+    const existingIndex = queueIds.indexOf(id);
+    if (existingIndex >= 0) queueIds.splice(existingIndex, 1);
+    queueIds.push(id);
+  }
+  state.session.recentQueueIds = queueIds.slice(-RECENT_QUEUE_LIMIT);
+  return true;
+}
+
+function pickBatchFromPool(requested) {
+  state.pool = state.pool.filter(isRecommendableSong);
+  const selected = [];
+  const selectedIndices = new Set();
+  const favoriteCap = favoriteCapForBatch(requested);
+  let favoriteCount = 0;
+
+  for (let i = 0; i < state.pool.length && selected.length < requested; i++) {
+    const item = state.pool[i];
+    if (!item) continue;
+    const isFavorite = state.hostFavorites.has(normalizeId(item.id)) || Boolean(item.isFavorite);
+    if (isFavorite && favoriteCount >= favoriteCap) continue;
+    selected.push(item);
+    selectedIndices.add(i);
+    if (isFavorite) favoriteCount++;
+  }
+
+  for (let i = 0; i < state.pool.length && selected.length < requested; i++) {
+    if (selectedIndices.has(i)) continue;
+    selected.push(state.pool[i]);
+    selectedIndices.add(i);
+  }
+
+  state.pool = state.pool.filter((_, index) => !selectedIndices.has(index));
+  return selected;
+}
+
 function selectDiverse(ranked, count) {
   if (count <= 0) return [];
   const selected = [];
@@ -933,7 +1018,7 @@ async function refillPool(count, sourceSongs) {
   if (count <= 0) return;
   if (!sourceSongs) sourceSongs = await getSourceSongs(state.config);
   const inPool = new Set(state.pool.map(item => item.id));
-  const candidates = sourceSongs.filter(song => song.id && !inPool.has(song.id));
+  const candidates = sourceSongs.filter(song => isRecommendableSong(song) && !inPool.has(song.id));
   if (candidates.length === 0) return;
 
   const ranked = candidates.map(song => ({ song, detail: scoreCandidate(song) }));
@@ -962,9 +1047,12 @@ async function initPool(sourceSongs) {
 
 async function checkoutPool(count) {
   const requested = Math.max(1, Math.min(QUEUE_BATCH, count || QUEUE_BATCH));
+  state.pool = state.pool.filter(isRecommendableSong);
   if (state.pool.length < requested) await refillPool(POOL_SIZE - state.pool.length);
-  const batch = state.pool.splice(0, requested);
+  const batch = pickBatchFromPool(requested);
+  const queueMarked = markQueuedSongs(batch);
   await savePool();
+  if (queueMarked) await saveSession();
   if (state.pool.length < Math.floor(POOL_SIZE * 0.5)) await refillPool(POOL_SIZE - state.pool.length);
   return batch;
 }
@@ -974,6 +1062,7 @@ async function releaseSongs(songs) {
   const existing = new Set(state.pool.map(item => item.id));
   for (const raw of songs) {
     const item = normalizeSong(raw);
+    if (!isRecommendableSong(item)) continue;
     if (item.id && !existing.has(item.id)) {
       state.pool.push(poolItem(item, scoreCandidate(item), 'interest'));
       existing.add(item.id);
@@ -989,6 +1078,7 @@ async function rerankPool() {
   const exploration = [];
   for (const raw of state.pool) {
     const song = normalizeSong(raw);
+    if (!isRecommendableSong(song)) continue;
     const detail = scoreCandidate(song);
     const mode = raw && raw.recommendation && raw.recommendation.mode === 'explore' ? 'explore' : 'interest';
     const item = poolItem(song, detail, mode);
@@ -1019,6 +1109,7 @@ function createSession() {
     interest: createPreferenceModel(),
     behaviors: [],
     seenIds: [],
+    recentQueueIds: [],
     playedCount: 0,
     likedCount: 0,
     dislikedCount: 0,
@@ -1090,7 +1181,7 @@ async function processBehavior(input) {
   if (weight) await saveProfile();
 
   if (type === 'dislike') {
-    state.pool = state.pool.filter(item => item.id !== targetSong.id);
+    state.pool = state.pool.filter(item => item.id !== targetSong.id && !isExplicitlyDisliked(item));
     await refillPool(1);
   }
   if (weight) await rerankPool();
@@ -1345,7 +1436,7 @@ router.get('/api/stats', async () => {
 
 /* ─── Lifecycle ─── */
 globalThis.onInit = async function () {
-  songloft.log.info('抖歌 1.4.2 initializing...');
+  songloft.log.info('抖歌 1.4.5 initializing...');
   await loadState();
   await syncHostFavorites(false);
   songloft.log.info('抖歌 initialized. Pool: ' + state.pool.length + ', History: ' + state.history.length);

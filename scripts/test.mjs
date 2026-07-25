@@ -17,7 +17,23 @@ const songs = [
   { id: 4, type: 'radio', file_path: '', title: 'D', artist: 'Artist C', album: 'Album D', genre: 'Jazz', year: 2018, language: '英语', style: '爵士', format: 'aac', duration: 210 },
   { id: 5, type: 'remote', url: 'https://example.test/E.mp3', title: 'E', artist: 'Artist D', album: 'Album E', genre: 'Electronic', year: 2024, language: '纯音乐', style: '电子', format: 'mp3', duration: 220 }
 ];
-const favoriteIds = new Set([1]);
+for (let i = 6; i <= 30; i++) {
+  songs.push({
+    id: i,
+    type: 'local',
+    file_path: '/music/library/song-' + i + '.mp3',
+    title: 'Song ' + i,
+    artist: 'Artist ' + i,
+    album: 'Album ' + i,
+    genre: i % 2 ? 'Pop' : 'Folk',
+    year: 1990 + i,
+    language: i % 3 ? '国语' : '英语',
+    style: i % 2 ? '抒情' : '民谣',
+    format: i % 2 ? 'flac' : 'mp3',
+    duration: 160 + i
+  });
+}
+const favoriteIds = new Set([1, 6, 7, 8, 9, 10, 11, 12]);
 const playlistCalls = [];
 
 const context = {
@@ -66,7 +82,10 @@ context.globalThis = context;
 vm.runInNewContext(source, context, { filename: 'main.js' });
 
 async function request(method, path, body) {
-  const result = await context.onHTTPRequest({ method, path, query: '', body: body ? JSON.stringify(body) : '' });
+  const index = path.indexOf('?');
+  const routePath = index >= 0 ? path.slice(0, index) : path;
+  const query = index >= 0 ? path.slice(index + 1) : '';
+  const result = await context.onHTTPRequest({ method, path: routePath, query, body: body ? JSON.stringify(body) : '' });
   return JSON.parse(result.body);
 }
 
@@ -83,10 +102,16 @@ const started = await request('POST', '/api/session/start', {});
 assert(started.session && started.session.active, 'creates an active discovery session');
 assert(started.favoriteSync.ids.includes('1'), 'loads host favorites as string IDs');
 
-const batch = await request('GET', '/api/pool/next', null);
+const batch = await request('GET', '/api/pool/next?count=8', null);
 assert(batch.songs.length > 0, 'returns a recommendation batch');
 assert(batch.songs.every(song => song.recommendation && song.recommendation.algorithm), 'attaches explainable recommendation metadata');
 assert(!batch.songs.some(song => JSON.stringify(song.recommendation).includes('宿主收藏')), 'uses 用户收藏 in recommendation details');
+assert(batch.songs.filter(song => favoriteIds.has(Number(song.id))).length <= 1, 'caps favorite songs in each recommendation batch');
+const firstBatchIds = new Set(batch.songs.map(song => String(song.id)));
+const secondBatch = await request('GET', '/api/pool/next?count=8', null);
+assert(!secondBatch.songs.some(song => firstBatchIds.has(String(song.id))), 'keeps freshly served songs out of the next batch');
+const savedSession = JSON.parse(storage.get('activeSession'));
+assert(batch.songs.every(song => savedSession.recentQueueIds.includes(String(song.id))), 'stores served songs for recommendation cooldown');
 const remaining = await request('GET', '/api/stats', null);
 assert(remaining.poolSize < 100, 'checkout removes the batch atomically from the pool');
 
@@ -110,6 +135,9 @@ await request('POST', '/api/behavior', {
 });
 const exclusivePreferences = await request('GET', '/api/preferences', null);
 assert(!exclusivePreferences.liked.includes(String(first.id)) && exclusivePreferences.disliked.includes(String(first.id)), 'keeps like and dislike mutually exclusive');
+await request('POST', '/api/pool/release', { songs: [first] });
+const dislikeFilteredBatch = await request('GET', '/api/pool/next?count=20', null);
+assert(!dislikeFilteredBatch.songs.some(song => String(song.id) === String(first.id)), 'keeps explicitly disliked songs out of released and refilled recommendation batches');
 const stats = await request('GET', '/api/stats', null);
 assert(stats.historyCount === 4, 'deduplicates repeated behavior events');
 assert(stats.historyStats.played === 2, 'counts actual playback starts instead of preference actions');
@@ -142,6 +170,7 @@ assert(filteredBatch.songs.every(song => song.type === 'local' && !String(song.f
 const html = readFileSync(join(root, 'static', 'index.html'), 'utf8');
 const app = readFileSync(join(root, 'static', 'app.js'), 'utf8');
 const css = readFileSync(join(root, 'static', 'styles.css'), 'utf8');
+const defaultCover = readFileSync(join(root, 'static', 'default-cover.svg'), 'utf8');
 assert(/type="range"[^>]*id="progress-bar"|id="progress-bar"[^>]*type="range"/.test(html), 'uses a native draggable range for playback progress');
 assert(html.includes('progress-fill') && html.includes('progress-thumb'), 'renders progress visuals beneath the native range input');
 assert(html.includes('<img src="static/icon.svg" alt="抖歌图标"'), 'uses the plugin icon on the setup screen');
@@ -151,7 +180,9 @@ assert(app.includes("progressBar.addEventListener('pointermove'") && app.include
 assert(app.includes('resolveReportedQueueIndex') && app.includes('current_song is authoritative'), 'uses one authoritative host state to prevent B-C-B cover updates');
 assert(app.includes('startPlayerStatePoll') && app.includes('staleBackwardPosition'), 'keeps progress and lyrics moving when host state events are stale or missing');
 assert(app.indexOf('resetCardPositions(false)', app.indexOf('B → C → B')) < app.indexOf('updateAdjacentCards()', app.indexOf('B → C → B')), 'moves the current card into place before rewriting adjacent previews');
-assert(app.includes('setSongDetailsHidden(true)') && app.includes('coverImg.removeAttribute'), 'hides stale progress, lyrics, and cover during song switches');
+assert(app.includes('setSongDetailsHidden(true)') && app.includes('setDefaultCover'), 'hides stale progress and lyrics during song switches and falls back to the default cover');
+assert(app.includes('DEFAULT_COVER_URL') && app.includes('setDefaultCover') && app.includes('removeQueuedSongAfterCurrent'), 'falls back to a default cover and removes disliked songs from the pending client queue');
+assert(defaultCover.includes('<svg') && defaultCover.includes('Default music cover'), 'ships a default cover image');
 assert(css.includes('-webkit-user-drag: none') && /progress-bar[\s\S]*pointer-events:\s*auto/.test(css), 'prevents native image drag and keeps the native progress range interactive');
 assert(!app.includes("factors.push('宿主收藏')") && app.includes("replace(/宿主收藏/g, '用户收藏')"), 'shows 用户收藏 in the bottom-right recommendation details');
 assert(app.includes('/api/preferences/reset') && app.includes('btn-reset-preferences'), 'offers a history reset action');

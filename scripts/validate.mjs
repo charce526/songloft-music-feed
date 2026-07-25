@@ -42,6 +42,7 @@ check(existsSync(join(ROOT, 'src', 'main.js')), 'src/main.js exists');
 check(existsSync(join(ROOT, 'static', 'index.html')), 'static/index.html exists');
 check(existsSync(join(ROOT, 'static', 'app.js')), 'static/app.js exists');
 check(existsSync(join(ROOT, 'static', 'styles.css')), 'static/styles.css exists');
+check(existsSync(join(ROOT, 'static', 'default-cover.svg')), 'static/default-cover.svg exists');
 
 // Check main.js markers
 const mainJs = readFileSync(join(ROOT, 'src', 'main.js'), 'utf8');

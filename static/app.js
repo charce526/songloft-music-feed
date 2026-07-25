@@ -8,6 +8,7 @@
 
 /* ─── SDK Bridge ─── */
 const hasSDK = typeof SongloftPlugin !== 'undefined' && SongloftPlugin !== null;
+const DEFAULT_COVER_URL = 'static/default-cover.svg';
 
 function token() {
   const q = new URLSearchParams(location.search).get('access_token');
@@ -541,24 +542,23 @@ function recommendationText(value) {
 }
 
 /* ─── Cover Loading (with race-condition guard) ─── */
+function setDefaultCover(gen) {
+  if (gen !== undefined && gen !== coverGeneration) return;
+  const fallback = authUrl(DEFAULT_COVER_URL);
+  coverImg.src = fallback;
+  coverPlaceholder.classList.add('hidden');
+  bgImage.style.backgroundImage = 'url(' + fallback + ')';
+  bgImage.classList.add('loaded');
+}
+
 function loadCover(song, previewUrl) {
   const gen = ++coverGeneration;
-  const candidates = [song.cover_url, song.source_cover_url];
+  const candidates = [previewUrl, song.cover_url, song.source_cover_url];
   if (song.id) candidates.push('/api/v1/songs/' + song.id + '/cover');
   const urls = Array.from(new Set(candidates.filter(Boolean).map(authUrl)));
-  const preview = previewUrl ? authUrl(previewUrl) : '';
 
   coverImg.draggable = false;
-  if (preview) {
-    coverImg.src = preview;
-    coverPlaceholder.classList.add('hidden');
-    bgImage.style.backgroundImage = 'url(' + preview + ')';
-    bgImage.classList.add('loaded');
-  } else {
-    coverPlaceholder.classList.remove('hidden');
-    bgImage.classList.remove('loaded');
-    coverImg.removeAttribute('src');
-  }
+  setDefaultCover(gen);
 
   if (urls.length === 0) {
     return;
@@ -566,8 +566,11 @@ function loadCover(song, previewUrl) {
 
   let idx = 0;
   function tryNext() {
-    if (idx >= urls.length) return;
     if (gen !== coverGeneration) return;
+    if (idx >= urls.length) {
+      setDefaultCover(gen);
+      return;
+    }
     const url = urls[idx];
     const img = new Image();
     img.onload = function () {
@@ -611,8 +614,13 @@ function loadMiniCover(imgEl, song) {
   const candidates = [song.cover_url, song.source_cover_url];
   if (song.id) candidates.push('/api/v1/songs/' + song.id + '/cover');
   const urls = candidates.filter(Boolean).map(authUrl);
+  const fallback = authUrl(DEFAULT_COVER_URL);
   imgEl.draggable = false;
-  imgEl.src = urls.length > 0 ? urls[0] : '';
+  imgEl.onerror = function () {
+    imgEl.onerror = null;
+    imgEl.src = fallback;
+  };
+  imgEl.src = urls.length > 0 ? urls[0] : fallback;
 }
 
 /* ─── Card Stack Positioning ─── */
@@ -785,6 +793,17 @@ function goPrev() {
         animating = false;
       }
     }, 330);
+  }
+}
+
+function removeQueuedSongAfterCurrent(id) {
+  const targetId = normalizeId(id);
+  if (!targetId) return;
+  const nextQueue = currentQueue.filter((song, index) =>
+    index <= currentIndex || normalizeId(song && song.id) !== targetId);
+  if (nextQueue.length !== currentQueue.length) {
+    currentQueue = nextQueue;
+    updateAdjacentCards();
   }
 }
 
@@ -964,6 +983,7 @@ $('btn-dislike').addEventListener('click', async function () {
     dislikedIds.add(id);
     markDislikeBtn();
     showToast('已标记不喜欢');
+    removeQueuedSongAfterCurrent(id);
     goNext(false);
     sendFeedbackChange('dislike', song).catch(() => {
       showToast('喜好保存失败，请稍后重试');
