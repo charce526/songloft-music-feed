@@ -185,7 +185,8 @@ assert(html.includes('progress-fill') && html.includes('progress-thumb'), 'rende
 assert(html.includes('<img src="static/icon.svg" alt="抖歌图标"'), 'uses the plugin icon on the setup screen');
 assert(html.includes('btn-recommendation-info') && !html.includes('reason-bar'), 'moves recommendation text behind the bottom-right info control');
 assert(app.includes("progressBar.addEventListener('input'") && app.includes('requestHostSeek'), 'seeks through the host while the native range is dragged');
-assert(app.includes("progressBar.addEventListener('pointermove'") && app.includes("progressSlider.addEventListener('pointerdown'") && app.includes("progressSlider.addEventListener('touchmove'") && app.includes("document.addEventListener('mousemove'"), 'supports pointer, touch, and mouse progress dragging from the bar and track');
+assert(app.includes('seekFromNativeInput') && app.includes("progressBar.addEventListener('change', finishNativeSeek)"), 'uses the native range input lifecycle used by Library Plus');
+assert(!app.includes("progressSlider.addEventListener('pointerdown'") && !app.includes("progressSlider.addEventListener('touchmove'") && !app.includes("progressSlider.addEventListener('mousedown'"), 'does not duplicate the native range gesture with competing pointer, touch, and mouse handlers');
 assert(app.includes('resolveReportedQueueIndex') && app.includes('current_song is authoritative'), 'uses one authoritative host state to prevent B-C-B cover updates');
 assert(app.includes('startPlayerStatePoll') && app.includes('staleBackwardPosition'), 'keeps progress and lyrics moving when host state events are stale or missing');
 assert(app.indexOf('resetCardPositions(false)', app.indexOf('B → C → B')) < app.indexOf('updateAdjacentCards()', app.indexOf('B → C → B')), 'moves the current card into place before rewriting adjacent previews');
@@ -194,6 +195,7 @@ assert(app.includes('DEFAULT_COVER_URL') && app.includes('setDefaultCover') && a
 assert(app.includes('refreshStatsIfVisible') && app.includes("then(refreshStatsIfVisible)"), 'refreshes visible statistics after behavior updates');
 assert(defaultCover.includes('<svg') && defaultCover.includes('Default music cover'), 'ships a default cover image');
 assert(css.includes('-webkit-user-drag: none') && /progress-bar[\s\S]*pointer-events:\s*auto/.test(css), 'prevents native image drag and keeps the native progress range interactive');
+assert(/\.card-adjacent\s*\{[^}]*pointer-events:\s*none/s.test(css) && /#card-current\s*\{[^}]*z-index:\s*2/s.test(css), 'keeps transparent adjacent preview cards from intercepting progress gestures');
 assert(!app.includes("factors.push('宿主收藏')") && app.includes("replace(/宿主收藏/g, '用户收藏')"), 'shows 用户收藏 in the bottom-right recommendation details');
 assert(app.includes('/api/preferences/reset') && app.includes('btn-reset-preferences'), 'offers a history reset action');
 assert(css.includes('.range-actions .stats-secondary') && css.includes('.range-actions .stats-close'), 'gives range cancel and save actions the same dimensions');

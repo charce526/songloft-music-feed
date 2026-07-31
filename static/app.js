@@ -220,7 +220,6 @@ const songAlbum = $('song-album');
 const progressTime = $('progress-time');
 const durationTime = $('duration-time');
 const progressBar = $('progress-bar');
-const progressSlider = document.querySelector('.progress-slider');
 const progressFill = $('progress-fill');
 const progressThumb = $('progress-thumb');
 const cardBottomZone = document.querySelector('.card-bottom-zone');
@@ -1033,16 +1032,15 @@ document.addEventListener('click', function () {
 });
 
 /* Progress seek
- * Keep a real range input on top of the custom visuals. Native range behavior
- * is the primary path; explicit pointer/touch/mouse mapping is a WebView
- * fallback. Seeks are coalesced so a drag cannot flood the host bridge.
+ * Use the same proven path as Library Plus: the native range input owns the
+ * gesture and each input value is converted to seconds for player.seek().
+ * Adjacent preview cards are non-interactive in CSS, so the range remains the
+ * real pointer target. Host calls are coalesced while the thumb is moving.
  */
 let progressDragging = false;
-let progressGestureActive = false;
-let seekTimer = null;
-let progressPointerId = null;
 let queuedSeekTarget = null;
 let seekFlushPromise = null;
+let progressReleaseTimer = null;
 
 function renderProgressRatio(value) {
   const ratio = Math.max(0, Math.min(1, Number(value) || 0));
@@ -1084,120 +1082,41 @@ function requestHostSeek(seekTo) {
   return seekFlushPromise;
 }
 
-function scheduleLiveSeek() {
-  if (!duration) return;
-  clearTimeout(seekTimer);
-  seekTimer = setTimeout(function () {
-    seekTimer = null;
-    const seekTo = seekFromRange();
-    lockLocalSeek(seekTo);
-    requestHostSeek(seekTo);
-  }, 100);
-}
-
-async function commitProgressSeek() {
-  if (!duration) return false;
-  clearTimeout(seekTimer);
-  seekTimer = null;
-  const seekTo = seekFromRange();
-  lockLocalSeek(seekTo);
-  const ok = await requestHostSeek(seekTo);
-  if (!ok && PlayerBridge.available()) {
-    pendingSeekTarget = null;
-    pendingSeekUntil = 0;
-    showToast('播放器不支持调整进度');
-  }
-  return ok;
-}
-
-function setProgressFromClientX(clientX) {
-  if (!duration || !Number.isFinite(Number(clientX))) return;
-  const rect = progressSlider.getBoundingClientRect();
-  const ratio = Math.max(0, Math.min(1, (Number(clientX) - rect.left) / Math.max(1, rect.width)));
-  progressBar.value = String(Math.round(ratio * 1000));
-  seekFromRange();
-}
-
-function beginProgressDrag(e) {
+function seekFromNativeInput() {
   if (!duration) {
     duration = songDurationSeconds(currentSong);
     if (duration > 0) durationTime.textContent = formatTime(duration);
   }
-  if (!duration) return;
+  if (!duration) return false;
   progressDragging = true;
-  progressGestureActive = true;
-  progressPointerId = e.pointerId === undefined ? null : e.pointerId;
-  if (e.clientX !== undefined) setProgressFromClientX(e.clientX);
-  scheduleLiveSeek();
-  e.stopPropagation();
+  const seekTo = seekFromRange();
+  lockLocalSeek(seekTo);
+  requestHostSeek(seekTo).then(function (ok) {
+    if (!ok && PlayerBridge.available()) {
+      pendingSeekTarget = null;
+      pendingSeekUntil = 0;
+      showToast('播放器不支持调整进度');
+    }
+  });
+  clearTimeout(progressReleaseTimer);
+  progressReleaseTimer = setTimeout(function () {
+    progressDragging = false;
+  }, 800);
+  return true;
 }
 
-function moveProgressDrag(e) {
-  if (!progressGestureActive ||
-      (progressPointerId !== null && e.pointerId !== undefined && e.pointerId !== progressPointerId)) return;
-  if (e.clientX !== undefined) setProgressFromClientX(e.clientX);
-  scheduleLiveSeek();
-  e.stopPropagation();
-}
-
-async function finishProgressDrag(e) {
-  if (!progressGestureActive && !progressDragging) return;
-  if (e && e.clientX !== undefined) setProgressFromClientX(e.clientX);
-  progressGestureActive = false;
+function finishNativeSeek() {
+  clearTimeout(progressReleaseTimer);
+  progressReleaseTimer = null;
   progressDragging = false;
-  progressPointerId = null;
-  if (e) e.stopPropagation();
-  await commitProgressSeek();
+  updateProgress();
 }
 
 progressBar.addEventListener('input', function (e) {
-  if (!duration) return;
-  progressDragging = true;
-  seekFromRange();
-  scheduleLiveSeek();
+  seekFromNativeInput();
   e.stopPropagation();
 });
-progressBar.addEventListener('change', finishProgressDrag);
-progressBar.addEventListener('pointerdown', beginProgressDrag);
-progressBar.addEventListener('pointermove', moveProgressDrag);
-progressBar.addEventListener('pointerup', finishProgressDrag);
-progressBar.addEventListener('pointercancel', finishProgressDrag);
-progressSlider.addEventListener('pointerdown', beginProgressDrag);
-progressSlider.addEventListener('pointermove', moveProgressDrag);
-progressSlider.addEventListener('pointerup', finishProgressDrag);
-progressSlider.addEventListener('pointercancel', finishProgressDrag);
-document.addEventListener('pointermove', moveProgressDrag);
-document.addEventListener('pointerup', finishProgressDrag);
-
-/* Older embedded WebViews may expose touch/mouse events without PointerEvent. */
-progressBar.addEventListener('touchstart', function (e) {
-  const touch = e.touches && e.touches[0];
-  beginProgressDrag({ clientX: touch && touch.clientX, stopPropagation: () => e.stopPropagation() });
-}, { passive: true });
-progressBar.addEventListener('touchmove', function (e) {
-  const touch = e.touches && e.touches[0];
-  moveProgressDrag({ clientX: touch && touch.clientX, stopPropagation: () => e.stopPropagation() });
-}, { passive: true });
-progressBar.addEventListener('touchend', function (e) {
-  const touch = e.changedTouches && e.changedTouches[0];
-  finishProgressDrag({ clientX: touch && touch.clientX, stopPropagation: () => e.stopPropagation() });
-}, { passive: true });
-progressSlider.addEventListener('touchstart', function (e) {
-  const touch = e.touches && e.touches[0];
-  beginProgressDrag({ clientX: touch && touch.clientX, stopPropagation: () => e.stopPropagation() });
-}, { passive: true });
-progressSlider.addEventListener('touchmove', function (e) {
-  const touch = e.touches && e.touches[0];
-  moveProgressDrag({ clientX: touch && touch.clientX, stopPropagation: () => e.stopPropagation() });
-}, { passive: true });
-progressSlider.addEventListener('touchend', function (e) {
-  const touch = e.changedTouches && e.changedTouches[0];
-  finishProgressDrag({ clientX: touch && touch.clientX, stopPropagation: () => e.stopPropagation() });
-}, { passive: true });
-progressBar.addEventListener('mousedown', beginProgressDrag);
-progressSlider.addEventListener('mousedown', beginProgressDrag);
-document.addEventListener('mousemove', moveProgressDrag);
-document.addEventListener('mouseup', finishProgressDrag);
+progressBar.addEventListener('change', finishNativeSeek);
 
 /* ─── UI Helpers ─── */
 function updateFavoriteBtn() {

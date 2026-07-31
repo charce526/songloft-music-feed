@@ -1,7 +1,7 @@
 {
   "name": "抖歌",
   "name_en": "songloft-music-feed",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "description": "沉浸式本地音乐发现插件，借鉴信息流体验，基于用户行为不断学习，帮助你重新发现自己的音乐库。",
   "author": "charce526",
   "license": "Apache-2.0",
@@ -16,7 +16,7 @@
     "playlists.write"
   ],
   "staticHash": false,
-  "download_url": "https://github.com/charce526/songloft-music-feed/releases/latest/download/songloft-music-feed-v1.4.6.jsplugin.zip",
-  "entryHash": "2739de9da557006f408b9b27088f4ecc62e129a200733f5b035f119495f32830",
-  "zipHash": "d9f061d69acbdcc9cc582c327f7aa43514bc3686f9a1fbdada4df998286ad64f"
+  "download_url": "https://github.com/charce526/songloft-music-feed/releases/latest/download/songloft-music-feed-v1.4.7.jsplugin.zip",
+  "entryHash": "6424847331660924349eb3062b335747d54e118aeced4b94814e8fe91f40b54e",
+  "zipHash": "ce8f33cca2faf5753cd9654110c1553c14aade2346447f64468d1318eb63af8c"
 }

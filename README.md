@@ -39,7 +39,7 @@
 
 ## 安装
 
-1. 下载最新版本：[songloft-music-feed-v1.4.6.jsplugin.zip](https://github.com/charce526/songloft-music-feed/releases/latest/download/songloft-music-feed-v1.4.6.jsplugin.zip)。
+1. 下载最新版本：[songloft-music-feed-v1.4.7.jsplugin.zip](https://github.com/charce526/songloft-music-feed/releases/latest/download/songloft-music-feed-v1.4.7.jsplugin.zip)。
 2. 打开 Songloft 插件管理页面。
 3. 上传安装包并启用“抖歌”。
 
@@ -57,7 +57,7 @@ https://raw.githubusercontent.com/charce526/songloft-music-feed/main/registry.js
 | --- | --- |
 | 插件名称 | 抖歌 |
 | 包名 | `songloft-music-feed` |
-| 当前版本 | `1.4.6` |
+| 当前版本 | `1.4.7` |
 | 作者 | `charce526` |
 | 许可证 | `Apache-2.0` |
 | 最低宿主版本 | `2.11.0` |

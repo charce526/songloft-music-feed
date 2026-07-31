@@ -1497,7 +1497,7 @@ router.get('/api/stats', async () => {
 
 /* ─── Lifecycle ─── */
 globalThis.onInit = async function () {
-  songloft.log.info('抖歌 1.4.6 initializing...');
+  songloft.log.info('抖歌 1.4.7 initializing...');
   await loadState();
   await syncHostFavorites(false);
   songloft.log.info('抖歌 initialized. Pool: ' + state.pool.length + ', History: ' + state.history.length);

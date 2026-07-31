@@ -165,26 +165,10 @@ assert(title.textContent === 'B', 'keeps the requested song visible after a cont
 assert(!titleMutations.includes('C'), 'does not render the transient C state between A and B');
 assert(window.document.getElementById('next-title').textContent === 'C', 'updates C only as the off-screen next preview');
 
-const slider = window.document.querySelector('.progress-slider');
-slider.getBoundingClientRect = () => ({ left: 100, right: 500, top: 0, bottom: 30, width: 400, height: 30 });
 const progressBar = window.document.getElementById('progress-bar');
-
-function dispatchPointer(target, type, clientX) {
-  const event = new window.Event(type, { bubbles: true, cancelable: true });
-  Object.assign(event, { pointerId: 7, pointerType: 'mouse', clientX });
-  target.dispatchEvent(event);
-}
-
-dispatchPointer(progressBar, 'pointerdown', 100);
-dispatchPointer(window.document, 'pointermove', 300);
-dispatchPointer(window.document, 'pointerup', 300);
-await wait(40);
-
-assert(seekCalls.some(value => Math.abs(value - 100) < 0.01), 'maps an actual pointer drag to a 100-second host seek');
-seekCalls.length = 0;
 progressBar.value = '500';
 progressBar.dispatchEvent(new window.Event('input', { bubbles: true }));
-await wait(160);
+await wait(40);
 
 assert(seekCalls.some(value => Math.abs(value - 100) < 0.01), 'sends a 100-second seek while dragging a 200-second song to 50%');
 assert(window.document.getElementById('progress-fill').style.width === '50%', 'updates the visible progress fill during dragging');
